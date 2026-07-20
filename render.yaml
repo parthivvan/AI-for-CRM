@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: genx360-ai-service
+    env: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: pilot
+      - key: AI_SERVICE_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CRM_BASE_URL
+        sync: false
+      - key: CRM_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PILOT_BRANCH_ID
+        sync: false
+      - key: ENABLE_SCHEDULER
+        value: "false"
+

@@ -1,0 +1,6 @@
+﻿image_path,image_type,pigmentation,redness,uneven_texture,dryness,hair_density,other_or_unclear
+images/consult_001.jpg,skin,1,0,1,0,0,0
+images/consult_002.jpg,scalp,0,1,0,0,1,0
+images/consult_003.jpg,hair,0,0,0,0,1,0
+images/consult_004.jpg,skin,1,1,0,1,0,0
+images/consult_005.jpg,body,0,0,0,0,0,1

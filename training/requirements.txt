@@ -1,0 +1,9 @@
+﻿# Training-only dependencies — not needed for the FastAPI service.
+# Install with: pip install -r training/requirements.txt
+torch>=2.2.0
+torchvision>=0.17.0
+onnx>=1.16.0
+scikit-learn>=1.4.0
+pandas>=2.2.0
+Pillow>=10.0.0
+numpy>=1.26.0

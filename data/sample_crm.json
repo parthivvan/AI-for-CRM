@@ -1,0 +1,59 @@
+{
+  "branches": {
+    "pilot-branch-001": {
+      "treatments": [
+        {
+          "treatment_id": "tx-laser-pigmentation",
+          "name": "Laser Pigmentation Correction",
+          "category": "skin",
+          "keywords": ["laser", "pigmentation", "brightening"]
+        },
+        {
+          "treatment_id": "tx-chemical-peel",
+          "name": "Advanced Chemical Peel",
+          "category": "skin",
+          "keywords": ["peel", "texture", "brightening"]
+        },
+        {
+          "treatment_id": "tx-calming-facial",
+          "name": "Calming Barrier Facial",
+          "category": "skin",
+          "keywords": ["soothing", "facial", "calming", "redness", "hydration", "barrier"]
+        },
+        {
+          "treatment_id": "tx-hair-prp",
+          "name": "PRP Hair Density Program",
+          "category": "scalp",
+          "keywords": ["hair", "scalp", "prp", "density"]
+        }
+      ],
+      "clients": [
+        {
+          "client_id": "client-001",
+          "name": "Pilot Client A",
+          "active_package": "Skin Renewal 6 Pack",
+          "sessions_total": 6,
+          "sessions_used": 5,
+          "days_since_last_visit": 36,
+          "missed_follow_up": true,
+          "purchase_count": 3,
+          "recent_concerns": ["pigmentation", "uneven_texture"],
+          "available_offers": ["Advanced Chemical Peel", "Laser Pigmentation Correction"]
+        },
+        {
+          "client_id": "client-002",
+          "name": "Pilot Client B",
+          "active_package": "Hair Restore 4 Pack",
+          "sessions_total": 4,
+          "sessions_used": 2,
+          "days_since_last_visit": 11,
+          "missed_follow_up": false,
+          "purchase_count": 1,
+          "recent_concerns": ["hair_density"],
+          "available_offers": ["PRP Hair Density Program"]
+        }
+      ]
+    }
+  }
+}
+

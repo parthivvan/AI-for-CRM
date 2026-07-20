@@ -1,0 +1,26 @@
+{
+  "image_rules": {
+    "pigmentation": {
+      "treatment_keywords": ["laser", "peel", "brightening", "pigmentation"],
+      "reason": "Visible pigmentation concern aligns with treatments targeting uneven tone."
+    },
+    "uneven_texture": {
+      "treatment_keywords": ["peel", "resurfacing", "facial", "texture"],
+      "reason": "Uneven texture can benefit from resurfacing or renewal-focused treatments."
+    },
+    "redness": {
+      "treatment_keywords": ["soothing", "facial", "calming", "redness"],
+      "reason": "Redness suggests prioritizing gentle calming treatments before aggressive procedures."
+    },
+    "hair_density": {
+      "treatment_keywords": ["hair", "scalp", "prp", "density"],
+      "reason": "Hair density concerns align with scalp and hair restoration options."
+    },
+    "dryness": {
+      "treatment_keywords": ["hydration", "facial", "barrier"],
+      "reason": "Dryness indicates hydration and skin barrier support may be useful."
+    }
+  },
+  "upsell_threshold": 60
+}
+
