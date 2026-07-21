@@ -1,4 +1,4 @@
-﻿"""Local ONNX model provider for GenX 360 vision analysis.
+"""Local ONNX model provider for GenX 360 vision analysis.
 
 Loads a fine-tuned multi-label classifier exported as ONNX.
 Falls back gracefully when the model file is not yet present.
@@ -23,16 +23,12 @@ logger = logging.getLogger(__name__)
 
 # Labels the model is trained to predict (order must match model output)
 ALL_LABELS: list[str] = [
+    "acne",
+    "dryness",
+    "hair_thinning",
     "pigmentation",
     "redness",
-    "uneven_texture",
-    "dryness",
-    "hair_density",
-    "other_or_unclear",
 ]
-
-# Labels excluded from the routing confidence check
-_ROUTING_EXCLUDED = {"other_or_unclear"}
 
 # Image pre-processing constants (ImageNet-style normalisation)
 _INPUT_SIZE = (224, 224)
@@ -108,26 +104,31 @@ class LocalModelProvider:
         tensor = self._preprocess(image_bytes)
         input_name = self._session.get_inputs()[0].name
         raw_output: list[Any] = self._session.run(None, {input_name: tensor})
-        scores_array = np.array(raw_output[0][0], dtype=np.float32)
+        logits = np.array(raw_output[0][0], dtype=np.float32)
+
+        # Apply Softmax activation for single-label classification (softmax + argmax)
+        exp_logits = np.exp(logits - np.max(logits))
+        probs = exp_logits / np.sum(exp_logits)
 
         labels = self._labels if self._labels else ALL_LABELS
         flag_scores: dict[str, float] = {
-            label: float(np.clip(scores_array[i], 0.0, 1.0))
+            label: float(probs[i])
             for i, label in enumerate(labels)
-            if i < len(scores_array)
+            if i < len(probs)
         }
 
-        # Detected flags: any label at or above threshold
-        detected_flags = [label for label, score in flag_scores.items() if score >= self._threshold]
-
-        # Routing confidence: max score excluding other_or_unclear
-        routing_scores = {k: v for k, v in flag_scores.items() if k not in _ROUTING_EXCLUDED}
-        max_confidence = max(routing_scores.values()) if routing_scores else 0.0
+        max_idx = int(np.argmax(probs))
+        max_prob = float(probs[max_idx])
+        max_label = labels[max_idx] if max_idx < len(labels) else ""
+        
+        detected_flags = []
+        if max_label and max_prob >= self._threshold:
+            detected_flags = [max_label]
 
         return VisionResult(
             detected_flags=detected_flags,
             flag_scores=flag_scores,
-            confidence=round(max_confidence, 4),
+            confidence=round(max_prob, 4),
             provider_used="local_model",
             raw={"model_path": str(self._model_path)},
         )

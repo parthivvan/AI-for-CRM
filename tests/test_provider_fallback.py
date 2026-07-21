@@ -74,51 +74,28 @@ async def test_local_model_used_when_ready_and_confident():
 
 
 @pytest.mark.asyncio
-async def test_gemini_fallback_when_local_not_ready():
-    settings = _settings(gemini_api_key="fake-key")
-    local = _local_model(ready=False)
-    provider = AIProvider(settings, local_model=local)
-
-    with patch.object(provider, "_analyze_with_gemini", new=AsyncMock(return_value=_gemini_result())):
-        result = await provider.analyze_image("https://example.com/img.jpg", ImageType.skin)
-
-    assert result.provider_used == "gemini_fallback"
-
-
-@pytest.mark.asyncio
-async def test_gemini_fallback_when_local_low_confidence():
-    settings = _settings(gemini_api_key="fake-key", model_threshold=0.65)
-    local = _local_model(ready=True, confidence=0.40)  # below threshold
-    provider = AIProvider(settings, local_model=local)
-
-    with patch.object(provider, "_download_image", new=AsyncMock(return_value=(b"img", "image/jpeg"))):
-        with patch.object(provider, "_analyze_with_gemini", new=AsyncMock(return_value=_gemini_result())):
-            result = await provider.analyze_image("https://example.com/img.jpg", ImageType.skin)
-
-    assert result.provider_used == "gemini_fallback"
-
-
-@pytest.mark.asyncio
-async def test_deterministic_fallback_when_both_unavailable():
-    settings = _settings(gemini_api_key=None, enable_gemini_fallback=True)
+async def test_deterministic_fallback_when_local_not_ready():
+    settings = _settings()
     local = _local_model(ready=False)
     provider = AIProvider(settings, local_model=local)
 
     result = await provider.analyze_image("https://example.com/pigmentation.jpg", ImageType.skin)
 
     assert result.provider_used == "deterministic_fallback"
+    assert "pigmentation" in result.detected_flags
 
 
 @pytest.mark.asyncio
-async def test_deterministic_fallback_when_gemini_fails():
-    settings = _settings(gemini_api_key="fake-key")
-    local = _local_model(ready=False)
+async def test_deterministic_fallback_when_local_low_confidence():
+    settings = _settings(model_threshold=0.65)
+    local = _local_model(ready=True, confidence=0.40)  # below threshold
     provider = AIProvider(settings, local_model=local)
 
-    with patch.object(provider, "_analyze_with_gemini", new=AsyncMock(side_effect=RuntimeError("gemini down"))):
-        result = await provider.analyze_image("https://example.com/img.jpg", ImageType.skin)
+    with patch.object(provider, "_download_image", new=AsyncMock(return_value=(b"img", "image/jpeg"))):
+        result = await provider.analyze_image("https://example.com/redness.jpg", ImageType.skin)
 
     assert result.provider_used == "deterministic_fallback"
+    assert "redness" in result.detected_flags
 
 
 @pytest.mark.asyncio

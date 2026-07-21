@@ -1,0 +1,319 @@
+# GenX 360 CRM — AI Microservice Technical Documentation
+
+## Executive Overview
+
+The **GenX 360 AI Microservice** is a specialized FastAPI backend designed to integrate with the GenX 360 Clinic CRM. It provides two core intelligent capabilities:
+
+1. **Module 1 — Image-Based Analysis & Treatment Recommendation**: Analyzes consultation photos (skin, scalp, hair) using a local ONNX computer vision model, maps detected visual indicators to branch specific clinic treatments, and uses GenAI (Google Gemini) to synthesize an objective brief for human consultants.
+2. **Module 2 — AI-Driven Upsell Recommendations**: Analyzes client history (package consumption, visit recency, past purchases), scores clients for follow-up readiness using deterministic rules, and generates personalized outreach message drafts using GenAI.
+
+All operations are authenticated via API keys, recorded in a local SQLite/PostgreSQL database for tracking outcomes, and configurable via environment variables.
+
+---
+
+## System Architecture
+
+The microservice follows a modular architecture separating model inference, business logic, storage, and external API communication.
+
+```mermaid
+graph TD
+    Client["CRM Frontend / Tester UI"] -->|HTTP REST + X-API-Key| FastAPI["FastAPI Gateway (app/main.py)"]
+
+    subgraph "Core Service Orchestration (app/services.py)"
+        FastAPI --> Mod1["Module 1: Image Analysis"]
+        FastAPI --> Mod2["Module 2: Upsell Recommendations"]
+        FastAPI --> LogOut["Outcomes Logger"]
+    end
+
+    subgraph "Vision & AI Tier (app/ai_provider.py)"
+        Mod1 --> ONNX["Local ONNX Model (app/local_model_provider.py)"]
+        ONNX -->|Fallback if low confidence| GeminiVis["Gemini Vision API"]
+        GeminiVis -->|Fallback if down| DetVis["Deterministic Keyword Matcher"]
+        Mod1 --> GenBrief["Gemini Text API (Consultant Brief)"]
+        Mod2 --> GenUpsell["Gemini Text API (Outreach Generation)"]
+    end
+
+    subgraph "Rules & Data Mapping (app/rules.py)"
+        Mod1 --> TreatmentMap["Treatment Catalog Mapper"]
+        Mod2 --> ClientScorer["Client Scoring Engine"]
+    end
+
+    subgraph "Data & Storage Layer (app/storage.py)"
+        Mod1 --> DB[("SQLAlchemy Database (genx_ai.db)")]
+        Mod2 --> DB
+        LogOut --> DB
+        CRMClient["CRM Client (app/crm_client.py)"] <-->|REST API| ExternalCRM["External CRM Server"]
+    end
+```
+
+---
+
+## Core Execution Pipelines
+
+### Pipeline 1: Module 1 — Consultation Image Analysis & Routing
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Consultation Screen / API
+    participant SVC as Service Layer (services.py)
+    participant ONNX as ONNX Model Provider
+    participant GEM as Gemini API Provider
+    participant RULE as Rules Engine (rules.py)
+    participant DB as SQLite / Postgres DB
+
+    UI->>SVC: POST /analyze {image_url, image_type, branch_id}
+    SVC->>ONNX: Run Local Model Inference (224x224 RGB)
+    alt ONNX Success (Confidence >= 0.65)
+        ONNX-->>SVC: Return Detected Flags (e.g. ['pigmentation'])
+    else ONNX Failure / Low Confidence
+        SVC->>GEM: Fallback to Gemini Vision API / Deterministic Matcher
+        GEM-->>SVC: Return Detected Flags
+    end
+
+    SVC->>RULE: Map Flags to Branch Treatment Catalog
+    RULE-->>SVC: Return Ranked Treatment Shortlist
+
+    SVC->>GEM: Generate Consultant Brief (Prompt with Safety Guardrails)
+    GEM-->>SVC: Return Consultant Brief Text
+
+    SVC->>DB: Save Analysis Log (analysis_logs)
+    SVC-->>UI: Return AnalyzeResponse JSON
+```
+
+### Pipeline 2: Module 2 — AI-Driven Client Upsell Recommendations
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SCHED as Daily Scheduler / Staff Action
+    participant SVC as Service Layer (services.py)
+    participant CRM as CRM Client (crm_client.py)
+    participant RULE as Rules Engine (rules.py)
+    participant GEM as Gemini API Provider
+    participant DB as Database Storage
+
+    SCHED->>SVC: POST /recommendations/run {branch_id}
+    SVC->>CRM: Get Client Historical Data for Branch
+    CRM-->>SVC: Return Client List
+
+    loop For Each Client
+        SVC->>RULE: Calculate Score & Signals (score_upsell_client)
+        RULE-->>SVC: {score, signals, suggested_offer}
+        alt Score >= Threshold (60)
+            SVC->>GEM: Generate Personal Reason & Outreach Draft
+            GEM-->>SVC: {reason, draft_message}
+            SVC->>SVC: Append to Recommendation List
+        end
+    end
+
+    SVC->>DB: Log Recommendations (recommendation_logs)
+    SVC->>CRM: Push Recommendations to CRM Server
+    SVC-->>SCHED: Return RecommendationRunResponse JSON
+```
+
+---
+
+## Detailed Component Breakdown
+
+### 1. Application Entrypoint & Router
+*   **File**: [app/main.py](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/app/main.py)
+*   **Responsibility**: Defines FastAPI routes, application lifespan state initialization, database creation, and security middleware dependency injections.
+*   **Key Routes**:
+    *   `POST /analyze`: Image analysis endpoint.
+    *   `POST /recommendations/run`: Manual/scheduled trigger for Module 2.
+    *   `POST /outcomes`: Log consultant feedback and client conversion outcomes.
+    *   `GET /test-ui`: Serves the interactive developer testing page ([test_ui.html](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/test_ui.html)).
+
+### 2. Local ONNX Model Provider
+*   **File**: [app/local_model_provider.py](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/app/local_model_provider.py)
+*   **Responsibility**: Wraps `onnxruntime` CPU execution.
+*   **Model Location**: `models/current/mobilenetv3_large_skin_ai.onnx`
+*   **Labels File**: [models/current/labels.json](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/models/current/labels.json) (`["acne", "dryness", "hair_thinning", "pigmentation", "redness"]`)
+*   **Preprocessing**: Resizes images to `224x224`, transposes to CHW format, applies standard ImageNet mean (`[0.485, 0.456, 0.406]`) and standard deviation (`[0.229, 0.224, 0.225]`).
+*   **Inference Logic**: Evaluates Sigmoid probabilities, extracts maximum confidence index using `argmax`, and flags indicators if probability meets or exceeds the configurable threshold (`0.65`).
+
+### 3. Unified AI & Fallback Provider
+*   **File**: [app/ai_provider.py](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/app/ai_provider.py)
+*   **Responsibility**: Manages API calls to Google Gemini and manages fallback logic.
+*   **Fallback Sequence**:
+    1. Local ONNX Model (`LocalModelProvider`)
+    2. Gemini Vision API (`_analyze_with_gemini`)
+    3. Deterministic Keyword Matcher (`_fallback_vision`)
+*   **Safety Constraints**: Prompts for consultant briefs strictly enforce non-diagnostic guardrails and require the mandatory string: `"Human review is required before sharing recommendations."`
+
+### 4. Business Rules & Scoring Engine
+*   **File**: [app/rules.py](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/app/rules.py)
+*   **Configuration**: [data/treatment_rules.json](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/data/treatment_rules.json)
+*   **Treatment Mapping**: Matches detected visual indicators (`acne`, `pigmentation`, etc.) against keywords in the branch treatment catalog, scoring and ranking top treatment choices.
+*   **Upsell Scoring Rules**:
+    *   Package 80%+ consumed: **+35 pts**
+    *   Missed follow-up: **+20 pts**
+    *   Inactive for >= 30 days: **+15 pts**
+    *   Purchase count >= 2: **+15 pts**
+    *   Recent concern match: **+15 pts**
+    *   *Threshold for outreach recommendation*: **>= 60 pts**
+
+### 5. Storage Engine & Database Schema
+*   **File**: [app/storage.py](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/app/storage.py)
+*   **Database**: SQLite (`genx_ai.db`) for local/testing, PostgreSQL supported via `psycopg` for production.
+*   **Tables**:
+    1. `analysis_logs`: Stores consultation image analysis outputs, detected flags, treatments, and brief payloads.
+    2. `recommendation_logs`: Stores client upsell scores, reasons, and outreach drafts.
+    3. `outcome_logs`: Records consultant actions (`accepted`, `edited`, `ignored`, `rejected`) and client conversion outcomes (`booked_consultation`, `purchased_package`, etc.).
+
+---
+
+## API Specification Reference
+
+### 1. Image Analysis Endpoint
+`POST /analyze`
+*   **Headers**: `X-API-Key: dev-ai-service-key`
+*   **Request Body**:
+    ```json
+    {
+      "consultation_id": "consult-101",
+      "branch_id": "pilot-branch-001",
+      "client_id": "client-001",
+      "image_url": "https://example.com/patient_skin.jpg",
+      "image_type": "skin"
+    }
+    ```
+*   **Response**:
+    ```json
+    {
+      "analysis_id": "analysis-a1b2c3d4",
+      "detected_flags": ["pigmentation", "redness"],
+      "flag_scores": {
+        "pigmentation": 0.85,
+        "redness": 0.72
+      },
+      "recommended_treatments": [
+        {
+          "treatment_id": "tx-chemical-peel",
+          "name": "Advanced Chemical Peel",
+          "rank": 1,
+          "reason": "Visible pigmentation concern aligns with treatments targeting uneven tone."
+        }
+      ],
+      "consultant_brief": "Review suggested for skin image. Detected indicators: pigmentation. Consider discussing Advanced Chemical Peel. Human review is required before sharing recommendations.",
+      "confidence": 0.85,
+      "provider_used": "local_model",
+      "model_version": "genx-vision-v0.1",
+      "requires_human_review": true
+    }
+    ```
+
+### 2. Upsell Recommendation Bulk Trigger
+`POST /recommendations/run`
+*   **Headers**: `X-API-Key: dev-ai-service-key`
+*   **Request Body**:
+    ```json
+    {
+      "branch_id": "pilot-branch-001",
+      "mode": "manual"
+    }
+    ```
+*   **Response**:
+    ```json
+    {
+      "branch_id": "pilot-branch-001",
+      "generated_count": 1,
+      "recommendations": [
+        {
+          "client_id": "client-001",
+          "score": 100,
+          "reason": "Client is a good follow-up candidate because package is almost consumed, missed a follow-up, has not visited recently.",
+          "suggested_offer": "Advanced Chemical Peel",
+          "draft_message": "Hi, we noticed it may be a good time to discuss Advanced Chemical Peel. Would you like us to help schedule a follow-up?"
+        }
+      ]
+    }
+    ```
+
+### 3. Recommendation-vs-Outcome Logger
+`POST /outcomes`
+*   **Headers**: `X-API-Key: dev-ai-service-key`
+*   **Request Body**:
+    ```json
+    {
+      "object_type": "analysis",
+      "object_id": "analysis-a1b2c3d4",
+      "branch_id": "pilot-branch-001",
+      "staff_action": "accepted",
+      "final_outcome": "booked_consultation",
+      "notes": "Client agreed to book Advanced Chemical Peel."
+    }
+    ```
+*   **Response**: `{"status": "recorded"}`
+
+---
+
+## Training & Model Export Pipeline
+
+The project includes an isolated training suite located in `training/` for fine-tuning vision classifiers.
+
+```mermaid
+graph LR
+    Dataset["Raw Dataset CSV (data/labels.csv)"] --> DataScript["Dataset Splitting (training/dataset.py)"]
+    DataScript --> Splits["Train / Val / Test Splits (data/splits/)"]
+    Splits --> TrainScript["EfficientNet-B0 Fine-Tuning (training/train.py)"]
+    TrainScript --> Checkpoint["PyTorch Checkpoint (checkpoints/best.pth)"]
+    Checkpoint --> EvalScript["Model Evaluation (training/evaluate.py)"]
+    Checkpoint --> ExportScript["ONNX Exporter (training/export_onnx.py)"]
+    ExportScript --> ActiveModel["Active ONNX Model (models/current/model.onnx)"]
+```
+
+### Steps to Fine-Tune & Deploy
+1. **Install Training Dependencies**:
+   `pip install -r training/requirements.txt`
+2. **Prepare Dataset & Generate Splits**:
+   `python training/dataset.py --csv data/labels.csv --images data/images/ --out data/splits/`
+3. **Run Training**:
+   `python training/train.py --splits data/splits/ --epochs 20 --out checkpoints/`
+4. **Evaluate Model Performance**:
+   `python training/evaluate.py --splits data/splits/ --checkpoint checkpoints/best.pth`
+5. **Export to ONNX**:
+   `python training/export_onnx.py --checkpoint checkpoints/best.pth --out models/current/`
+
+---
+
+## Setup & Deployment Guide
+
+### Local Development Setup
+1. **Virtual Environment**:
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
+2. **Install Dependencies**:
+   ```bash
+   pip install -e ".[test]"
+   ```
+3. **Environment Variables**: Create a `.env` file in the root directory:
+   ```env
+   APP_ENV=local
+   AI_SERVICE_API_KEY=dev-ai-service-key
+   PILOT_BRANCH_ID=pilot-branch-001
+   GEMINI_API_KEY=your_gemini_api_key
+   GEMINI_MODEL=gemini-1.5-flash
+   MODEL_PATH=models/current/mobilenetv3_large_skin_ai.onnx
+   MODEL_LABELS_PATH=models/current/labels.json
+   DATABASE_URL=sqlite:///./genx_ai.db
+   ```
+4. **Launch Server**:
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
+5. **Run Tests**:
+   ```bash
+   pytest
+   ```
+
+### Docker Container Deployment
+The application is fully containerized via [Dockerfile](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/Dockerfile):
+```bash
+docker build -t genx360-ai-service .
+docker run -p 8000:8000 --env-file .env genx360-ai-service
+```
+Infrastructure configuration for production deployment is provided in [render.yaml](file:///c:/Users/Parthiv%20Vanapalli/Desktop/AI%20fo%20CRM/render.yaml).

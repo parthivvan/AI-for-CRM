@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir ".[postgres]"
 
 COPY app ./app
 COPY data ./data
+COPY models ./models
 
 EXPOSE 8000
 

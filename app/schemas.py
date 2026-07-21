@@ -15,7 +15,7 @@ class AnalyzeRequest(BaseModel):
     consultation_id: str = Field(min_length=1)
     branch_id: str = Field(min_length=1)
     client_id: str = Field(min_length=1)
-    image_url: HttpUrl
+    image_url: str
     image_type: ImageType
 
 

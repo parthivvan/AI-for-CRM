@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from app.local_model_provider import LocalModelProvider, ALL_LABELS, _ROUTING_EXCLUDED
+from app.local_model_provider import LocalModelProvider, ALL_LABELS
 from app.schemas import ImageType
 
 
@@ -90,42 +90,6 @@ def test_preprocess_produces_correct_shape():
 
 
 # ---------------------------------------------------------------------------
-# other_or_unclear excluded from routing confidence
-# ---------------------------------------------------------------------------
-
-def test_routing_excludes_other_or_unclear(tmp_path):
-    labels = ALL_LABELS
-    labels_path = tmp_path / "labels.json"
-    labels_path.write_text(json.dumps(labels))
-    model_path = tmp_path / "model.onnx"
-    model_path.write_bytes(b"fake")
-
-    # Scores: only other_or_unclear is high (0.9); all primary labels < threshold
-    raw_scores = np.array([[0.1, 0.2, 0.1, 0.1, 0.15, 0.9]], dtype=np.float32)
-
-    mock_session = MagicMock()
-    mock_session.get_inputs.return_value = [MagicMock(name="input")]
-    mock_session.run.return_value = [raw_scores]
-
-    with patch("onnxruntime.InferenceSession", return_value=mock_session):
-        provider = LocalModelProvider(
-            model_path=str(model_path),
-            labels_path=str(labels_path),
-            threshold=0.65,
-        )
-        provider.load()
-        image_bytes = _make_jpeg_bytes()
-        result = provider.analyze(image_bytes, ImageType.skin)
-
-    # No primary label flagged despite other_or_unclear being 0.9
-    assert result.provider_used == "local_model"
-    # routing confidence must not be driven by other_or_unclear
-    assert result.confidence < 0.65  # max of primary labels = 0.2
-    # other_or_unclear is still in flag_scores
-    assert "other_or_unclear" in result.flag_scores
-
-
-# ---------------------------------------------------------------------------
 # Threshold logic
 # ---------------------------------------------------------------------------
 
@@ -136,7 +100,8 @@ def test_flags_above_threshold_are_detected(tmp_path):
     model_path = tmp_path / "model.onnx"
     model_path.write_bytes(b"fake")
 
-    raw_scores = np.array([[0.85, 0.30, 0.70, 0.10, 0.10, 0.10]], dtype=np.float32)
+    # High logit for index 0 (acne), others low
+    raw_scores = np.array([[5.0, 1.0, 1.0, 1.0, 1.0]], dtype=np.float32)
 
     mock_session = MagicMock()
     mock_session.get_inputs.return_value = [MagicMock(name="input")]
@@ -151,6 +116,33 @@ def test_flags_above_threshold_are_detected(tmp_path):
         provider.load()
         result = provider.analyze(_make_jpeg_bytes(), ImageType.skin)
 
-    assert "pigmentation" in result.detected_flags   # 0.85 >= 0.65
-    assert "uneven_texture" in result.detected_flags  # 0.70 >= 0.65
-    assert "redness" not in result.detected_flags     # 0.30 < 0.65
+    assert "acne" in result.detected_flags
+    assert len(result.detected_flags) == 1
+    assert result.confidence > 0.9
+
+def test_flags_below_threshold_are_not_detected(tmp_path):
+    labels = ALL_LABELS
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(json.dumps(labels))
+    model_path = tmp_path / "model.onnx"
+    model_path.write_bytes(b"fake")
+
+    # Logits that result in max probability below threshold
+    raw_scores = np.array([[-1.0, -1.0, -1.0, -1.0, -1.0]], dtype=np.float32)
+
+    mock_session = MagicMock()
+    mock_session.get_inputs.return_value = [MagicMock(name="input")]
+    mock_session.run.return_value = [raw_scores]
+
+    with patch("onnxruntime.InferenceSession", return_value=mock_session):
+        provider = LocalModelProvider(
+            model_path=str(model_path),
+            labels_path=str(labels_path),
+            threshold=0.65,
+        )
+        provider.load()
+        result = provider.analyze(_make_jpeg_bytes(), ImageType.skin)
+
+    assert len(result.detected_flags) == 0
+    # Softmax of 5 equal logits is 1/5 = 0.2
+    assert round(result.confidence, 4) == 0.2

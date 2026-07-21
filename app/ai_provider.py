@@ -20,33 +20,28 @@ class AIProvider:
         self._local_model = local_model
 
     async def analyze_image(self, image_url: str, image_type: ImageType) -> VisionResult:
-        """Route analysis through local model → Gemini → deterministic fallback."""
-        # --- 1. Local ONNX model (primary) ---
+        """Route image classification through local ONNX model -> deterministic fallback.
+        
+        Per strict architecture rules, GenAI is restricted to brief write-ups only and
+        is never used for image classification/detection.
+        """
+        # --- 1. Local ONNX model (primary classification provider) ---
         if self._local_model and self._local_model.is_ready():
             try:
                 image_bytes, _ = await self._download_image(image_url)
                 result = self._local_model.analyze(image_bytes, image_type)
-                if result.confidence >= self.settings.model_threshold:
+                if result.confidence >= self.settings.model_threshold and result.detected_flags:
                     return result
-                # Low confidence — fall through to Gemini if enabled
                 logger.warning(
-                    "LocalModel confidence %.3f below threshold %.3f — trying Gemini fallback.",
+                    "LocalModel confidence %.3f below threshold %.3f — falling back to deterministic classification.",
                     result.confidence,
                     self.settings.model_threshold,
                 )
             except Exception:
-                logger.exception("LocalModel inference error — trying Gemini fallback.")
+                logger.exception("LocalModel inference error — falling back to deterministic classification.")
 
-        # --- 2. Gemini fallback ---
-        if self.settings.enable_gemini_fallback and self.settings.gemini_api_key:
-            logger.warning("Using Gemini fallback for image analysis.")
-            try:
-                return await self._analyze_with_gemini(image_url, image_type)
-            except Exception:
-                logger.exception("Gemini fallback failed — using deterministic fallback.")
-
-        # --- 3. Deterministic fallback ---
-        logger.warning("Using deterministic fallback for image analysis.")
+        # --- 2. Deterministic classification fallback ---
+        logger.warning("Using deterministic fallback for image classification.")
         return self._fallback_vision(image_url, image_type)
 
     async def generate_consultant_brief(
@@ -56,11 +51,33 @@ class AIProvider:
         image_type: ImageType,
     ) -> str:
         if self.settings.gemini_api_key:
-            prompt = (
-                "Write a concise consultant-facing brief for a clinic CRM. "
-                "Do not diagnose. Mention that human review is required. "
-                f"Image type: {image_type.value}. Flags: {flags}. Treatments: {treatments}."
-            )
+            # Hardened prompt with structural tags, negative constraints, and few-shot examples
+            prompt = f"""You are a clinical advisory assistant for a clinic CRM.
+Your task is to generate a concise, objective, consultant-facing brief recommending treatments based on visual indicators.
+
+[CRITICAL SAFETY CONSTRAINTS]
+1. DO NOT DIAGNOSE. Use speculative and cautious terminology (e.g., "visual indicators suggest", "showing signs of", "indicates potential"). Never say "we detected", "diagnosed", or promise a "cure".
+2. MANDATORY SAFETY DISCLAIMER: You must explicitly include the exact phrase: "Human review is required before sharing recommendations."
+3. PERSONA: Write for a clinic consultant/practitioner, not the patient. Keep it objective, professional, and brief.
+[/CRITICAL SAFETY CONSTRAINTS]
+
+[EXAMPLES]
+Example 1:
+Input: Image type: skin. Flags: ['redness']. Treatments: [{{'name': 'Calming Facial', 'price': 90}}].
+Output: Consultant Brief: Skin consultation visual indicators suggest potential redness. Recommend discussing Calming Facial ($90). Human review is required before sharing recommendations.
+
+Example 2:
+Input: Image type: scalp. Flags: ['hair_thinning']. Treatments: [{{'name': 'Laser Hair Therapy', 'price': 250}}].
+Output: Consultant Brief: Scalp consultation shows signs of potential hair thinning. Recommend discussing Laser Hair Therapy ($250). Human review is required before sharing recommendations.
+[/EXAMPLES]
+
+[CURRENT INPUT]
+Image type: {image_type.value}.
+Flags: {flags}.
+Treatments: {treatments}.
+[/CURRENT INPUT]
+
+Provide only the "Consultant Brief" output:"""
             try:
                 return await self._generate_text(prompt)
             except Exception:
@@ -94,8 +111,8 @@ class AIProvider:
         image_bytes, mime_type = await self._download_image(image_url)
         prompt = (
             "Analyze this clinic consultation image for visible non-diagnostic indicators only. "
-            "Return JSON with keys detected_flags and confidence. Allowed flags: "
-            "pigmentation, uneven_texture, redness, hair_density, dryness. "
+            "Return JSON with keys detected_flags (a list containing exactly one best-matching label) and confidence. Allowed flags: "
+            "acne, dryness, hair_thinning, pigmentation, redness. "
             f"Image type: {image_type.value}."
         )
         endpoint = self._gemini_endpoint()
@@ -122,6 +139,8 @@ class AIProvider:
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         parsed = httpx.Response(200, content=text).json()
         flags = [flag for flag in parsed.get("detected_flags", []) if isinstance(flag, str)]
+        if flags:
+            flags = [flags[0]]
         confidence = float(parsed.get("confidence", 0.7))
         return VisionResult(
             detected_flags=flags,
@@ -140,7 +159,22 @@ class AIProvider:
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
     async def _download_image(self, image_url: str) -> tuple[bytes, str]:
-        async with httpx.AsyncClient(timeout=self.settings.crm_timeout_seconds, follow_redirects=True) as client:
+        if image_url.startswith("data:image"):
+            # Parse data URI
+            header, encoded = image_url.split(",", 1)
+            mime_type = header.split(";")[0].split(":")[1]
+            return base64.b64decode(encoded), mime_type
+
+        # Check for local file path
+        if not image_url.startswith("http://") and not image_url.startswith("https://"):
+            from pathlib import Path
+            p = Path(image_url)
+            if p.exists() and p.is_file():
+                mime_type = mimetypes.guess_type(image_url)[0] or "image/jpeg"
+                return p.read_bytes(), mime_type.split(";")[0]
+
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        async with httpx.AsyncClient(timeout=self.settings.crm_timeout_seconds, follow_redirects=True, headers=headers) as client:
             response = await client.get(image_url)
             response.raise_for_status()
         mime_type = response.headers.get("content-type") or mimetypes.guess_type(image_url)[0] or "image/jpeg"
@@ -158,17 +192,21 @@ class AIProvider:
         keyword_flags = {
             "pigment": "pigmentation",
             "spot": "pigmentation",
-            "texture": "uneven_texture",
+            "acne": "acne",
+            "pimple": "acne",
             "red": "redness",
-            "hair": "hair_density",
-            "scalp": "hair_density",
+            "hair": "hair_thinning",
+            "scalp": "hair_thinning",
             "dry": "dryness",
         }
         for keyword, flag in keyword_flags.items():
             if keyword in source and flag not in flags:
                 flags.append(flag)
-        if not flags:
-            flags = ["hair_density"] if image_type in {ImageType.hair, ImageType.scalp} else ["pigmentation", "uneven_texture"]
+        
+        if flags:
+            flags = [flags[0]]
+        else:
+            flags = ["hair_thinning"] if image_type in {ImageType.hair, ImageType.scalp} else ["acne"]
         return VisionResult(
             detected_flags=flags,
             confidence=0.72,

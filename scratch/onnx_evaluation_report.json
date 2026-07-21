@@ -1,0 +1,131 @@
+{
+  "test": {
+    "accuracy": 0.8916,
+    "total_images": 249,
+    "elapsed_seconds": 17.12,
+    "ms_per_image": 68.75,
+    "metrics_per_class": {
+      "acne": {
+        "precision": 0.8378,
+        "recall": 0.8857,
+        "f1_score": 0.8611,
+        "support": 35,
+        "correct": 31
+      },
+      "dryness": {
+        "precision": 0.8765,
+        "recall": 0.8875,
+        "f1_score": 0.882,
+        "support": 80,
+        "correct": 71
+      },
+      "hair_thinning": {
+        "precision": 0.95,
+        "recall": 0.9048,
+        "f1_score": 0.9268,
+        "support": 42,
+        "correct": 38
+      },
+      "pigmentation": {
+        "precision": 0.9848,
+        "recall": 0.8784,
+        "f1_score": 0.9286,
+        "support": 74,
+        "correct": 65
+      },
+      "redness": {
+        "precision": 0.68,
+        "recall": 0.9444,
+        "f1_score": 0.7907,
+        "support": 18,
+        "correct": 17
+      }
+    }
+  },
+  "validation": {
+    "accuracy": 0.8964,
+    "total_images": 251,
+    "elapsed_seconds": 21.29,
+    "ms_per_image": 84.8,
+    "metrics_per_class": {
+      "acne": {
+        "precision": 0.9167,
+        "recall": 0.9167,
+        "f1_score": 0.9167,
+        "support": 36,
+        "correct": 33
+      },
+      "dryness": {
+        "precision": 0.8941,
+        "recall": 0.9383,
+        "f1_score": 0.9157,
+        "support": 81,
+        "correct": 76
+      },
+      "hair_thinning": {
+        "precision": 0.9756,
+        "recall": 0.9756,
+        "f1_score": 0.9756,
+        "support": 41,
+        "correct": 40
+      },
+      "pigmentation": {
+        "precision": 0.9524,
+        "recall": 0.8,
+        "f1_score": 0.8696,
+        "support": 75,
+        "correct": 60
+      },
+      "redness": {
+        "precision": 0.6154,
+        "recall": 0.8889,
+        "f1_score": 0.7273,
+        "support": 18,
+        "correct": 16
+      }
+    }
+  },
+  "train": {
+    "accuracy": 0.956,
+    "total_images": 250,
+    "elapsed_seconds": 21.07,
+    "ms_per_image": 84.29,
+    "metrics_per_class": {
+      "acne": {
+        "precision": 0.9592,
+        "recall": 0.94,
+        "f1_score": 0.9495,
+        "support": 50,
+        "correct": 47
+      },
+      "dryness": {
+        "precision": 0.9074,
+        "recall": 0.98,
+        "f1_score": 0.9423,
+        "support": 50,
+        "correct": 49
+      },
+      "hair_thinning": {
+        "precision": 0.98,
+        "recall": 0.98,
+        "f1_score": 0.98,
+        "support": 50,
+        "correct": 49
+      },
+      "pigmentation": {
+        "precision": 0.9388,
+        "recall": 0.92,
+        "f1_score": 0.9293,
+        "support": 50,
+        "correct": 46
+      },
+      "redness": {
+        "precision": 1.0,
+        "recall": 0.96,
+        "f1_score": 0.9796,
+        "support": 50,
+        "correct": 48
+      }
+    }
+  }
+}

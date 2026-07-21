@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.responses import HTMLResponse
 
 from app.ai_provider import AIProvider
 from app.config import Settings, get_settings
@@ -60,6 +61,21 @@ app = FastAPI(
 
 def app_settings(request: Request) -> Settings:
     return request.app.state.settings
+
+@app.get("/test-ui", response_class=HTMLResponse, include_in_schema=False)
+def test_ui():
+    with open("test_ui.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.get("/api/image", include_in_schema=False)
+def get_local_image(path: str):
+    import os
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    
+    if not os.path.exists(path) or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path)
 
 @app.get("/")
 def root() -> dict[str, object]:

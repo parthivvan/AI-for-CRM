@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GenX 360 AI Analysis Tester</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #0f172a;
+            --surface: rgba(30, 41, 59, 0.7);
+            --surface-border: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 25%),
+                              radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.15), transparent 25%);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-weight: 700;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+        
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background: var(--surface);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--surface-border);
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary), #818cf8);
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Results Area */
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .placeholder-text {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 3rem 0;
+            font-style: italic;
+        }
+
+        .image-preview {
+            width: 100%;
+            height: 200px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid var(--surface-border);
+            margin-bottom: 1.5rem;
+        }
+
+        .image-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .result-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-box {
+            background: rgba(0,0,0,0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--surface-border);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+        
+        .stat-value.warning {
+            color: var(--warning);
+        }
+
+        .treatment-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .treatment-item {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--surface-border);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        .treatment-item h4 {
+            margin: 0 0 0.25rem 0;
+            color: #e2e8f0;
+        }
+
+        .treatment-item p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .prob-bar-container {
+            width: 100%;
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin-top: 0.25rem;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+            height: 8px;
+        }
+        .prob-bar {
+            height: 100%;
+            background-color: #818cf8;
+            transition: width 0.3s ease;
+        }
+        .prob-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>GenX 360</h1>
+    <div class="subtitle">AI Vision Analysis & Treatment Routing</div>
+
+    <div class="container">
+        <!-- Input Form -->
+        <div class="card">
+            <h3 style="margin-top: 0;">Analyze Image</h3>
+            <form id="analyzeForm">
+                <div class="form-group">
+                    <label for="apiKey">API Key</label>
+                    <input type="text" id="apiKey" value="dev-ai-service-key" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Image Source</label>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <button type="button" id="btnUrl" style="flex: 1; background: var(--primary); color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">Use URL</button>
+                        <button type="button" id="btnFile" style="flex: 1; background: rgba(255,255,255,0.1); color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">Upload File</button>
+                    </div>
+                </div>
+
+                <div class="form-group" id="urlGroup">
+                    <label for="imageUrl">Image URL</label>
+                    <input type="url" id="imageUrl" placeholder="https://example.com/face.jpg">
+                </div>
+                
+                <div class="form-group" id="fileGroup" style="display: none;">
+                    <label for="imageFile">Upload Local Image</label>
+                    <input type="file" id="imageFile" accept="image/png, image/jpeg, image/webp" style="padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; width: 100%; color: white;">
+                </div>
+
+                <div class="form-group">
+                    <label for="imageType">Image Type</label>
+                    <select id="imageType">
+                        <option value="skin">Skin / Face</option>
+                        <option value="scalp">Scalp</option>
+                        <option value="hair">Hair</option>
+                        <option value="body">Body</option>
+                    </select>
+                </div>
+
+                <button type="submit" id="submitBtn">
+                    <span id="btnText">Run Analysis</span>
+                    <div class="loader" id="loader"></div>
+                </button>
+            </form>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="card results-container">
+            <h3 style="margin-top: 0;">Results</h3>
+            
+            <div id="placeholder" class="placeholder-text">
+                Submit an image to see the analysis results here.
+            </div>
+
+            <div id="resultsContent" style="display: none;">
+                <div class="image-preview">
+                    <img id="previewImg" src="" alt="Preview" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'><rect width=\'100\' height=\'100\' fill=\'#1e293b\'/><text x=\'50\' y=\'50\' font-family=\'sans-serif\' font-size=\'12\' fill=\'#94a3b8\' text-anchor=\'middle\' dominant-baseline=\'middle\'>Invalid Image URL</text></svg>'">
+                </div>
+
+                <!-- Consultant Brief Card -->
+                <div style="margin-bottom: 1.5rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px; padding: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <label style="color: #818cf8; font-weight: 700; margin: 0;">📋 Consultant Brief</label>
+                        <span id="resHumanReview" class="result-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Requires Review</span>
+                    </div>
+                    <p id="resBrief" style="margin: 0; font-size: 0.95rem; line-height: 1.5; color: #f8fafc;"></p>
+                </div>
+
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <label>Provider Used</label>
+                        <div id="resProvider" style="font-weight: 600; text-transform: capitalize; margin-top: 0.25rem;"></div>
+                    </div>
+                    <div class="stat-box">
+                        <label>Confidence</label>
+                        <div id="resConfidence" class="stat-value"></div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label>Detected Flags</label>
+                    <div id="resFlags" style="margin-top: 0.5rem;"></div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label>Class Probabilities</label>
+                    <div id="resProbabilities" style="margin-top: 0.5rem;"></div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="margin-bottom: 0.75rem;">Recommended Treatments</label>
+                    <ul class="treatment-list" id="resTreatments"></ul>
+                </div>
+
+                <!-- Outcome Feedback Action Bar -->
+                <div style="padding-top: 1rem; border-top: 1px solid var(--surface-border);">
+                    <label style="margin-bottom: 0.5rem;">Log Consultant Outcome</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" id="btnAccept" style="background: var(--success); font-size: 0.85rem; padding: 0.5rem;">Accept</button>
+                        <button type="button" id="btnEdit" style="background: var(--warning); font-size: 0.85rem; padding: 0.5rem;">Edit</button>
+                        <button type="button" id="btnReject" style="background: #ef4444; font-size: 0.85rem; padding: 0.5rem;">Reject</button>
+                    </div>
+                    <div id="outcomeStatus" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let useFile = false;
+        
+        document.getElementById('btnUrl').addEventListener('click', () => {
+            useFile = false;
+            document.getElementById('urlGroup').style.display = 'block';
+            document.getElementById('fileGroup').style.display = 'none';
+            document.getElementById('btnUrl').style.background = 'var(--primary)';
+            document.getElementById('btnFile').style.background = 'rgba(255,255,255,0.1)';
+        });
+
+        document.getElementById('btnFile').addEventListener('click', () => {
+            useFile = true;
+            document.getElementById('fileGroup').style.display = 'block';
+            document.getElementById('urlGroup').style.display = 'none';
+            document.getElementById('btnFile').style.background = 'var(--primary)';
+            document.getElementById('btnUrl').style.background = 'rgba(255,255,255,0.1)';
+        });
+
+        document.getElementById('analyzeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            const loader = document.getElementById('loader');
+            const resultsContent = document.getElementById('resultsContent');
+            const placeholder = document.getElementById('placeholder');
+            
+            // Set loading state
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            resultsContent.style.display = 'none';
+            placeholder.style.display = 'block';
+            placeholder.textContent = "Analyzing image...";
+
+            const apiKey = document.getElementById('apiKey').value;
+            const imageType = document.getElementById('imageType').value;
+            let finalImageUrl = document.getElementById('imageUrl').value;
+
+            try {
+                if (useFile) {
+                    const fileInput = document.getElementById('imageFile');
+                    if (fileInput.files.length === 0) {
+                        throw new Error("Please select a file to upload.");
+                    }
+                    const file = fileInput.files[0];
+                    const reader = new FileReader();
+                    finalImageUrl = await new Promise((resolve, reject) => {
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = e => reject(new Error("Error reading file"));
+                        reader.readAsDataURL(file);
+                    });
+                } else {
+                    if (!finalImageUrl) throw new Error("Please provide an image URL.");
+                }
+
+                // Update preview image immediately
+                if (!useFile && !finalImageUrl.startsWith('http://') && !finalImageUrl.startsWith('https://') && !finalImageUrl.startsWith('data:')) {
+                    document.getElementById('previewImg').src = `/api/image?path=${encodeURIComponent(finalImageUrl)}`;
+                } else {
+                    document.getElementById('previewImg').src = finalImageUrl;
+                }
+
+                const payload = {
+                    consultation_id: "test_" + Math.floor(Math.random() * 10000),
+                    branch_id: "pilot-branch-001",
+                    client_id: "client_1",
+                    image_url: finalImageUrl,
+                    image_type: imageType
+                };
+
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Store current IDs for outcome logging
+                window.currentAnalysisId = data.analysis_id;
+                window.currentBranchId = payload.branch_id;
+                document.getElementById('outcomeStatus').textContent = '';
+
+                // Populate Consultant Brief & Safety Badge
+                document.getElementById('resBrief').textContent = data.consultant_brief || 'No brief generated.';
+                const reviewBadge = document.getElementById('resHumanReview');
+                if (data.requires_human_review) {
+                    reviewBadge.style.display = 'inline-block';
+                    reviewBadge.textContent = 'Requires Human Review';
+                } else {
+                    reviewBadge.style.display = 'none';
+                }
+
+                // Populate results
+                document.getElementById('resProvider').textContent = data.provider_used.replace('_', ' ');
+                
+                const confEl = document.getElementById('resConfidence');
+                confEl.textContent = (data.confidence * 100).toFixed(1) + '%';
+                if(data.confidence < 0.65) {
+                    confEl.className = 'stat-value warning';
+                } else {
+                    confEl.className = 'stat-value';
+                }
+
+                const flagsContainer = document.getElementById('resFlags');
+                flagsContainer.innerHTML = '';
+                if(data.detected_flags.length > 0) {
+                    data.detected_flags.forEach(flag => {
+                        const span = document.createElement('span');
+                        span.className = 'result-badge';
+                        span.textContent = flag;
+                        flagsContainer.appendChild(span);
+                    });
+                } else {
+                    flagsContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.9rem;">None detected above threshold</span>';
+                }
+
+                const probsContainer = document.getElementById('resProbabilities');
+                probsContainer.innerHTML = '';
+                if(data.flag_scores && Object.keys(data.flag_scores).length > 0) {
+                    for(const [flag, score] of Object.entries(data.flag_scores)) {
+                        const pct = (score * 100).toFixed(1);
+                        const wrap = document.createElement('div');
+                        wrap.style.marginBottom = '0.5rem';
+                        wrap.innerHTML = `
+                            <div class="prob-label">
+                                <span style="text-transform: capitalize;">${flag.replace('_', ' ')}</span>
+                                <span>${pct}%</span>
+                            </div>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar" style="width: ${pct}%;"></div>
+                            </div>
+                        `;
+                        probsContainer.appendChild(wrap);
+                    }
+                } else {
+                    probsContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.9rem;">Not available</span>';
+                }
+
+                const treatmentsList = document.getElementById('resTreatments');
+                treatmentsList.innerHTML = '';
+                if(data.recommended_treatments && data.recommended_treatments.length > 0) {
+                    data.recommended_treatments.forEach((t, index) => {
+                        const li = document.createElement('li');
+                        li.className = 'treatment-item';
+                        li.style.animationDelay = `${index * 0.1}s`;
+                        li.innerHTML = `
+                            <h4>${t.name}</h4>
+                            <p>${t.reason}</p>
+                        `;
+                        treatmentsList.appendChild(li);
+                    });
+                } else {
+                    treatmentsList.innerHTML = '<li class="treatment-item"><p>No specific treatments recommended based on this analysis.</p></li>';
+                }
+
+                // Show results
+                placeholder.style.display = 'none';
+                resultsContent.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error:', error);
+                placeholder.textContent = "Error: " + error.message;
+            } finally {
+                // Reset button
+                btn.disabled = false;
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+            }
+        });
+
+        async function sendOutcome(action) {
+            if (!window.currentAnalysisId) return;
+            const statusEl = document.getElementById('outcomeStatus');
+            statusEl.textContent = `Logging outcome (${action})...`;
+            const apiKey = document.getElementById('apiKey').value;
+
+            try {
+                const response = await fetch('/outcomes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    body: JSON.stringify({
+                        object_type: 'analysis',
+                        object_id: window.currentAnalysisId,
+                        branch_id: window.currentBranchId || 'pilot-branch-001',
+                        staff_action: action,
+                        final_outcome: action === 'rejected' ? 'not_suitable' : 'booked_consultation',
+                        notes: `Consultant selected ${action} in test UI.`
+                    })
+                });
+
+                if (response.ok) {
+                    statusEl.style.color = 'var(--success)';
+                    statusEl.textContent = `Successfully logged outcome: ${action}`;
+                } else {
+                    statusEl.style.color = '#ef4444';
+                    statusEl.textContent = `Failed to log outcome (HTTP ${response.status})`;
+                }
+            } catch (err) {
+                statusEl.style.color = '#ef4444';
+                statusEl.textContent = `Error logging outcome: ${err.message}`;
+            }
+        }
+
+        document.getElementById('btnAccept').addEventListener('click', () => sendOutcome('accepted'));
+        document.getElementById('btnEdit').addEventListener('click', () => sendOutcome('edited'));
+        document.getElementById('btnReject').addEventListener('click', () => sendOutcome('rejected'));
+    </script>
+</body>
+</html>

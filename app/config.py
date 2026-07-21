@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Local model (ONNX) — primary vision provider
     vision_provider: str = "local_model"  # local_model | gemini | deterministic
     enable_gemini_fallback: bool = True
-    model_path: str = "models/current/model.onnx"
+    model_path: str = "models/current/mobilenetv3_large_skin_ai.onnx"
     model_labels_path: str = "models/current/labels.json"
     model_version: str = "genx-vision-v0.1"
     model_threshold: float = 0.65
