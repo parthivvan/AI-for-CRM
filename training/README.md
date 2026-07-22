@@ -1,43 +1,66 @@
-﻿# GenX 360 Vision Model Training Pipeline
+# GenX 360 AI Training & Model Export Pipeline
 
-Fine-tune EfficientNet-B0 as a multi-label skin/scalp/hair image classifier and export to ONNX.
+This directory contains scripts for dataset splitting, fine-tuning, evaluating, and exporting the local ONNX vision model for the GenX 360 CRM microservice.
 
-## Quick-start
+---
+
+## 🎯 Model Target Architecture
+
+* **Backbone**: MobileNetV3-Large
+* **Output Type**: 5-class single-label top prediction with Softmax activation
+* **Labels Set (5 classes)**:
+  1. `acne`
+  2. `dryness`
+  3. `hair_thinning`
+  4. `pigmentation`
+  5. `redness`
+* **Export Target**: `models/current/mobilenetv3_large_skin_ai.onnx` & `models/current/labels.json`
+
+---
+
+## 🚀 Execution Workflow
+
+### 1. Dataset Preparation & Splitting
+Split an `ImageFolder` dataset structure (`data/Skin_AI_Dataset/<label_name>/*.jpg`) into train, validation, and test splits:
 
 ```bash
-# 1. Install training dependencies (separate from the service venv)
-pip install -r training/requirements.txt
-
-# 2. Prepare your dataset CSV  (see data/sample_labels.csv for schema)
-python training/dataset.py --csv data/labels.csv --images data/images/ --out data/splits/
-
-# 3. Fine-tune
-python training/train.py --splits data/splits/ --epochs 20 --out checkpoints/
-
-# 4. Evaluate
-python training/evaluate.py --splits data/splits/ --checkpoint checkpoints/best.pth
-
-# 5. Export to ONNX
-python training/export_onnx.py --checkpoint checkpoints/best.pth --out models/current/
+python training/dataset.py \
+    --dataset-dir data/Skin_AI_Dataset/ \
+    --out data/splits/
 ```
 
-## Labels
+### 2. Model Training
+Fine-tune MobileNetV3-Large on the 5-label dataset:
 
-| Index | Label |
-|-------|-------|
-| 0 | pigmentation |
-| 1 | redness |
-| 2 | uneven_texture |
-| 3 | dryness |
-| 4 | hair_density |
-| 5 | other_or_unclear |
+```bash
+python training/train.py \
+    --dataset-dir data/Skin_AI_Dataset/ \
+    --splits-dir data/splits/ \
+    --epochs 20 \
+    --batch-size 16 \
+    --lr 1e-4 \
+    --out checkpoints/
+```
 
-## Dataset CSV schema
+### 3. Model Evaluation
+Evaluate the fine-tuned checkpoint across test, validation, and train splits to output evaluation metrics:
 
-See `data/sample_labels.csv`. Each row is one image; label columns are binary (0/1).
+```bash
+python training/evaluate.py \
+    --dataset-dir data/Skin_AI_Dataset/ \
+    --splits-dir data/splits/ \
+    --checkpoint checkpoints/best_mobilenetv3.pth \
+    --out scratch/onnx_evaluation_report.json
+```
 
-## Target metrics (pilot baseline)
+### 4. ONNX Export
+Export the PyTorch model checkpoint to ONNX format for local CPU inference in FastAPI:
 
-- 300–500 labelled images for a first run.
-- Per-label F1 >= 0.70 before deploying to pilot branch.
-- 2 000+ images for a stronger pilot.
+```bash
+python training/export_onnx.py \
+    --checkpoint checkpoints/best_mobilenetv3.pth \
+    --out models/current/ \
+    --version genx-mobilenetv3-v1.0
+```
+
+This exports `models/current/mobilenetv3_large_skin_ai.onnx` and `models/current/labels.json`, synced directly with `LocalModelProvider` (`app/local_model_provider.py`).

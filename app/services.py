@@ -44,8 +44,33 @@ async def run_image_analysis(
         raise HTTPException(status_code=502, detail="Unable to load treatment catalog from CRM.") from exc
 
     vision = await ai_provider.analyze_image(str(request.image_url), request.image_type)
-    mapped = map_indicators_to_treatments(vision.detected_flags, treatment_catalog)
-    brief = await ai_provider.generate_consultant_brief(vision.detected_flags, mapped, request.image_type)
+
+    # Fetch client history if available
+    client_history = None
+    try:
+        clients = await crm_client.get_upsell_candidates(request.branch_id)
+        client_history = next((c for c in clients if c.get("client_id") == request.client_id), None)
+    except Exception:
+        pass
+
+    # Evaluate Clinical Decision Engine (Evidence Fusion & Contraindications)
+    from app.clinical_engine import evaluate_clinical_decision_engine
+    mapped, warnings = evaluate_clinical_decision_engine(
+        visual_flags=vision.detected_flags,
+        flag_scores=vision.flag_scores,
+        treatment_catalog=treatment_catalog,
+        questionnaire=request.intake_questionnaire,
+        client_history=client_history,
+    )
+
+    if vision.provider_used in ("subject_validation_rejected", "local_model_quality_rejected"):
+        err_detail = vision.raw.get("subject_error") or vision.raw.get("quality_error") or "Invalid image content uploaded."
+        brief = f"INSUFFICIENT OR UNRELATED IMAGE CONTENT: {err_detail} Please upload only related clinical images (Face for skin analysis, Scalp for hair analysis, Body for body composition)."
+    else:
+        brief = await ai_provider.generate_consultant_brief(vision.detected_flags, mapped, request.image_type)
+        if warnings:
+            brief += "\n\n[CLINICAL CONTRAINDICATION WARNINGS]\n" + "\n".join(f"• {w}" for w in warnings)
+
     model_version = settings.model_version if vision.provider_used == "local_model" else None
     response = AnalyzeResponse(
         analysis_id=f"analysis-{uuid4().hex}",

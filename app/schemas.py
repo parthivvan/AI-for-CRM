@@ -11,19 +11,41 @@ class ImageType(str, Enum):
     body = "body"
 
 
+class ClientIntakeQuestionnaire(BaseModel):
+    skin_type: Literal["oily", "dry", "combination", "sensitive", "normal"] | None = None
+    primary_concerns: list[str] = Field(default_factory=list)
+    is_pregnant: bool = False
+    allergies: list[str] = Field(default_factory=list)
+    current_medications: list[str] = Field(default_factory=list)
+    recent_treatments: list[str] = Field(default_factory=list)
+
+
 class AnalyzeRequest(BaseModel):
     consultation_id: str = Field(min_length=1)
     branch_id: str = Field(min_length=1)
     client_id: str = Field(min_length=1)
     image_url: str
     image_type: ImageType
+    intake_questionnaire: ClientIntakeQuestionnaire | None = None
+
+
+class EvidenceItem(BaseModel):
+    source: str
+    finding: str
+    confidence: float | None = None
+    explanation: str | None = None
 
 
 class TreatmentRecommendation(BaseModel):
     treatment_id: str
     name: str
     rank: int = Field(ge=1)
-    reason: str
+    score: int = Field(default=80, ge=0, le=100)
+    confidence: str = "Medium"
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    contraindications: list[str] = Field(default_factory=list)
+    why_recommended: list[str] = Field(default_factory=list)
+    reason: str = ""
 
 
 class AnalyzeResponse(BaseModel):

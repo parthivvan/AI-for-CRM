@@ -1,0 +1,23 @@
+{
+  "weights": {
+    "vision_weight": 0.45,
+    "questionnaire_weight": 0.30,
+    "history_weight": 0.20,
+    "clinic_priority_weight": 0.05
+  },
+  "contraindications": {
+    "is_pregnant": ["laser", "peel", "retinoid", "prp"]
+  },
+  "boosts": {
+    "sensitive_skin_calming": 25,
+    "questionnaire_concern_match": 30,
+    "history_concern_match": 20
+  },
+  "penalties": {
+    "sensitive_skin_exfoliation": -15
+  },
+  "confidence_thresholds": {
+    "high": 75,
+    "medium": 45
+  }
+}

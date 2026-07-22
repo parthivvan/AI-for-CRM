@@ -101,6 +101,34 @@ class LocalModelProvider:
         if not self._ready or self._session is None:
             raise RuntimeError("LocalModelProvider.analyze() called while not ready.")
 
+        # Validate image quality before inference
+        from app.image_quality import validate_image_quality
+        is_valid, error_reason = validate_image_quality(image_bytes)
+        if not is_valid:
+            logger.warning("LocalModelProvider: image quality validation failed — %s", error_reason)
+            labels = self._labels if self._labels else ALL_LABELS
+            return VisionResult(
+                detected_flags=[],
+                flag_scores={label: 0.0 for label in labels},
+                confidence=0.0,
+                provider_used="local_model_quality_rejected",
+                raw={"quality_error": error_reason},
+            )
+
+        # Validate subject relevance (Face/Scalp/Body presence check)
+        from app.subject_validation import validate_subject_relevance
+        is_relevant, relevance_msg = validate_subject_relevance(image_bytes, image_type)
+        if not is_relevant:
+            logger.warning("LocalModelProvider: subject relevance check failed — %s", relevance_msg)
+            labels = self._labels if self._labels else ALL_LABELS
+            return VisionResult(
+                detected_flags=[],
+                flag_scores={label: 0.0 for label in labels},
+                confidence=0.0,
+                provider_used="subject_validation_rejected",
+                raw={"subject_error": relevance_msg},
+            )
+
         tensor = self._preprocess(image_bytes)
         input_name = self._session.get_inputs()[0].name
         raw_output: list[Any] = self._session.run(None, {input_name: tensor})

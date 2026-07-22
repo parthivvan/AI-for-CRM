@@ -1,93 +1,97 @@
-﻿"""dataset.py — Validate CSV labels and produce train/val/test splits.
+"""dataset.py — Validate dataset structure and produce train/val/test splits.
+
+Supports both:
+1. ImageFolder directory layout (<dataset_root>/<label_name>/*.jpg)
+2. CSV-based label files
+
+Target 5-class label set:
+    ['acne', 'dryness', 'hair_thinning', 'pigmentation', 'redness']
 
 Usage:
     python training/dataset.py \
-        --csv data/labels.csv \
-        --images data/images/ \
+        --dataset-dir data/Skin_AI_Dataset/ \
         --out data/splits/
-
-CSV columns required:
-    image_path, image_type, pigmentation, redness, uneven_texture,
-    dryness, hair_density, other_or_unclear
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from pathlib import Path
 
-LABEL_COLS = [
+LABEL_COLS: list[str] = [
+    "acne",
+    "dryness",
+    "hair_thinning",
     "pigmentation",
     "redness",
-    "uneven_texture",
-    "dryness",
-    "hair_density",
-    "other_or_unclear",
 ]
 REQUIRED_COLS = {"image_path", "image_type"} | set(LABEL_COLS)
 
 
-def validate_and_split(
-    csv_path: Path,
-    images_root: Path,
+def validate_and_split_folder(
+    dataset_dir: Path,
     out_dir: Path,
     train_frac: float = 0.70,
     val_frac: float = 0.15,
 ) -> None:
-    import pandas as pd
-    from sklearn.model_selection import train_test_split
-
-    df = pd.read_csv(csv_path)
-    missing = REQUIRED_COLS - set(df.columns)
-    if missing:
-        print(f"ERROR: CSV missing columns: {missing}", file=sys.stderr)
-        sys.exit(1)
-
-    # Validate image files exist
-    bad = [row.image_path for row in df.itertuples() if not (images_root / row.image_path).exists()]
-    if bad:
-        print(f"ERROR: {len(bad)} image(s) not found under {images_root}. First 5: {bad[:5]}", file=sys.stderr)
-        sys.exit(1)
-
-    # Validate binary labels
-    for col in LABEL_COLS:
-        bad_vals = df[~df[col].isin([0, 1])][col]
-        if not bad_vals.empty:
-            print(f"ERROR: column {col!r} contains non-binary values.", file=sys.stderr)
-            sys.exit(1)
-
-    # Split
-    test_frac = 1.0 - train_frac - val_frac
-    train_df, temp_df = train_test_split(df, test_size=(1 - train_frac), random_state=42)
-    val_df, test_df = train_test_split(temp_df, test_size=test_frac / (val_frac + test_frac), random_state=42)
-
+    """Split an ImageFolder structured directory into train/val/test splits."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    train_df.to_csv(out_dir / "train.csv", index=False)
-    val_df.to_csv(out_dir / "val.csv", index=False)
-    test_df.to_csv(out_dir / "test.csv", index=False)
+    samples: list[dict[str, str]] = []
 
-    summary = {
-        "total": len(df),
-        "train": len(train_df),
-        "val": len(val_df),
-        "test": len(test_df),
-        "labels": LABEL_COLS,
+    for label in LABEL_COLS:
+        class_dir = dataset_dir / label
+        if not class_dir.exists():
+            print(f"WARNING: Class directory {class_dir} not found.", file=sys.stderr)
+            continue
+
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.PNG"):
+            for img_path in class_dir.glob(ext):
+                rel_path = str(img_path.relative_to(dataset_dir))
+                samples.append({
+                    "image_path": rel_path,
+                    "label": label,
+                    "image_type": "scalp" if label == "hair_thinning" else "skin",
+                })
+
+    if not samples:
+        print(f"ERROR: No valid images found under {dataset_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    random.seed(42)
+    random.shuffle(samples)
+
+    total = len(samples)
+    n_train = int(total * train_frac)
+    n_val = int(total * val_frac)
+
+    splits = {
+        "train": samples[:n_train],
+        "val": samples[n_train:n_train + n_val],
+        "test": samples[n_train + n_val:],
     }
-    (out_dir / "split_summary.json").write_text(json.dumps(summary, indent=2))
-    print(f"Split complete: {summary}")
+
+    for split_name, split_samples in splits.items():
+        out_file = out_dir / f"{split_name}.json"
+        out_file.write_text(json.dumps(split_samples, indent=2), encoding="utf-8")
+        print(f"Wrote {len(split_samples)} samples to {out_file}")
+
+    labels_file = out_dir / "labels.json"
+    labels_file.write_text(json.dumps(LABEL_COLS, indent=2), encoding="utf-8")
+    print(f"Wrote label configuration to {labels_file}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate and split GenX 360 label CSV.")
-    parser.add_argument("--csv", required=True, type=Path)
-    parser.add_argument("--images", required=True, type=Path)
-    parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--train-frac", type=float, default=0.70)
-    parser.add_argument("--val-frac", type=float, default=0.15)
+    parser = argparse.ArgumentParser(description="GenX 360 Dataset Validator & Splitter")
+    parser.add_argument("--dataset-dir", type=Path, default=Path("data/Skin_AI_Dataset"), help="Path to ImageFolder dataset")
+    parser.add_argument("--out", type=Path, default=Path("data/splits"), help="Output directory for split JSON files")
+    parser.add_argument("--train-frac", type=float, default=0.70, help="Train split fraction")
+    parser.add_argument("--val-frac", type=float, default=0.15, help="Validation split fraction")
     args = parser.parse_args()
-    validate_and_split(args.csv, args.images, args.out, args.train_frac, args.val_frac)
+
+    validate_and_split_folder(args.dataset_dir, args.out, args.train_frac, args.val_frac)
 
 
 if __name__ == "__main__":

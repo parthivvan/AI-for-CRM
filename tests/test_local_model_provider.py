@@ -19,10 +19,11 @@ from app.schemas import ImageType
 # ---------------------------------------------------------------------------
 
 def _make_jpeg_bytes() -> bytes:
-    """Return minimal valid JPEG bytes (1x1 red pixel)."""
+    """Return valid JPEG bytes (224x224 image with noise/gradient)."""
     from PIL import Image
     from io import BytesIO
-    img = Image.new("RGB", (4, 4), color=(200, 100, 50))
+    arr = np.random.randint(50, 200, (224, 224, 3), dtype=np.uint8)
+    img = Image.fromarray(arr)
     buf = BytesIO()
     img.save(buf, format="JPEG")
     return buf.getvalue()

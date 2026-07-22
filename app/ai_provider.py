@@ -30,6 +30,11 @@ class AIProvider:
             try:
                 image_bytes, _ = await self._download_image(image_url)
                 result = self._local_model.analyze(image_bytes, image_type)
+
+                # Return quality or subject validation rejections directly (do not fall back to _fallback_vision)
+                if result.provider_used in ("local_model_quality_rejected", "subject_validation_rejected"):
+                    return result
+
                 if result.confidence >= self.settings.model_threshold and result.detected_flags:
                     return result
                 logger.warning(
